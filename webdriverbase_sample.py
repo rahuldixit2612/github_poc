@@ -1,0 +1,189 @@
+package com.common.framework.web.core;
+
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.firefox.FirefoxDriver;
+import org.openqa.selenium.firefox.FirefoxOptions;
+import org.openqa.selenium.edge.EdgeDriver;
+import org.openqa.selenium.edge.EdgeOptions;
+import org.openqa.selenium.remote.CapabilityType;
+import org.openqa.selenium.remote.DesiredCapabilities;
+import org.openqa.selenium.support.ui.WebDriverWait;
+
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * WebDriverBase class to manage WebDriver setup, configuration and teardown.
+ */
+public class WebDriverBase {
+
+    protected static WebDriver driver;
+    protected static WebDriverWait wait;
+
+    /**
+     * Enum to manage supported browser types.
+     */
+    public enum BrowserType {
+        CHROME,
+        FIREFOX,
+        EDGE
+    }
+
+    /**
+     * Initialize WebDriver with default Chrome browser.
+     */
+    public static void initializeDriver() {
+        initializeDriver(BrowserType.CHROME);
+    }
+
+    /**
+     * Initialize WebDriver based on browser type.
+     *
+     * @param browserType BrowserType enum value
+     */
+    public static void initializeDriver(BrowserType browserType) {
+        if (driver != null) {
+            return; // Driver already initialized
+        }
+
+        switch (browserType) {
+            case CHROME:
+                driver = new ChromeDriver(getChromeOptions());
+                break;
+            case FIREFOX:
+                driver = new FirefoxDriver(getFirefoxOptions());
+                break;
+            case EDGE:
+                driver = new EdgeDriver(getEdgeOptions());
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported browser type: " + browserType);
+        }
+
+        driver.manage().window().maximize();
+        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+        wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+    }
+
+    /**
+     * Create and return ChromeOptions.
+     *
+     * @return ChromeOptions instance
+     */
+    private static ChromeOptions getChromeOptions() {
+        ChromeOptions options = new ChromeOptions();
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("profile.default_content_setting_values.notifications", 2);
+        prefs.put("credentials_enable_service", false);
+        prefs.put("profile.password_manager_enabled", false);
+
+        options.setExperimentalOption("prefs", prefs);
+        options.addArguments("--disable-notifications");
+        options.addArguments("--start-maximized");
+
+        DesiredCapabilities caps = new DesiredCapabilities();
+        caps.setCapability(CapabilityType.ACCEPT_SSL_CERTS, true);
+        options.merge(caps);
+
+        return options;
+    }
+
+    /**
+     * Create and return FirefoxOptions.
+     *
+     * @return FirefoxOptions instance
+     */
+    private static FirefoxOptions getFirefoxOptions() {
+        FirefoxOptions options = new FirefoxOptions();
+        options.addArguments("--disable-notifications");
+        return options;
+    }
+
+    /**
+     * Create and return EdgeOptions.
+     *
+     * @return EdgeOptions instance
+     */
+    private static EdgeOptions getEdgeOptions() {
+        EdgeOptions options = new EdgeOptions();
+        options.addArguments("--disable-notifications");
+        return options;
+    }
+
+    /**
+     * Get the current WebDriver instance.
+     *
+     * @return WebDriver instance
+     */
+    public static WebDriver getDriver() {
+        if (driver == null) {
+            throw new IllegalStateException("WebDriver not initialized. Call initializeDriver() first.");
+        }
+        return driver;
+    }
+
+    /**
+     * Get the WebDriverWait instance.
+     *
+     * @return WebDriverWait instance
+     */
+    public static WebDriverWait getWait() {
+        if (wait == null) {
+            throw new IllegalStateException("Wait not initialized. Call initializeDriver() first.");
+        }
+        return wait;
+    }
+
+    /**
+     * Close the current browser window.
+     */
+    public static void closeDriver() {
+        if (driver != null) {
+            driver.close();
+        }
+    }
+
+    /**
+     * Quit the WebDriver instance and cleanup.
+     */
+    public static void quitDriver() {
+        if (driver != null) {
+            driver.quit();
+            driver = null;
+            wait = null;
+        }
+    }
+
+    /**
+     * Navigate to a given URL.
+     *
+     * @param url URL to open
+     */
+    public static void navigateTo(String url) {
+        if (driver == null) {
+            throw new IllegalStateException("WebDriver not initialized.");
+        }
+        driver.get(url);
+    }
+
+    /**
+     * Get the current page title.
+     *
+     * @return Page title as String
+     */
+    public static String getPageTitle() {
+        return driver.getTitle();
+    }
+
+    /**
+     * Get the current page URL.
+     *
+     * @return Current URL
+     */
+    public static String getCurrentUrl() {
+        return driver.getCurrentUrl();
+    }
+}
