@@ -1,0 +1,177 @@
+package com.automation.framework.core;
+
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.firefox.FirefoxOptions;
+import org.openqa.selenium.edge.EdgeOptions;
+import org.openqa.selenium.remote.CapabilityType;
+import org.openqa.selenium.remote.DesiredCapabilities;
+import org.openqa.selenium.remote.RemoteWebDriver;
+import org.openqa.selenium.support.ui.WebDriverWait;
+
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
+
+public class AdvancedWebDriverManager {
+
+    private static ThreadLocal<WebDriver> driverThreadLocal = new ThreadLocal<>();
+    private static ThreadLocal<WebDriverWait> waitThreadLocal = new ThreadLocal<>();
+
+    public enum BrowserType {
+        CHROME, FIREFOX, EDGE
+    }
+
+    private static final String GRID_URL = System.getProperty("grid.url", "http://localhost:4444/wd/hub");
+    private static final boolean IS_REMOTE = Boolean.parseBoolean(System.getProperty("run.remote", "false"));
+    private static final boolean IS_HEADLESS = Boolean.parseBoolean(System.getProperty("headless", "false"));
+    private static final int IMPLICIT_WAIT = Integer.parseInt(System.getProperty("wait.implicit", "10"));
+    private static final int EXPLICIT_WAIT = Integer.parseInt(System.getProperty("wait.explicit", "20"));
+
+    /** 
+     * Initializes the WebDriver using default browser from system properties.
+     */
+    public static void initializeDriver() {
+        initializeDriver(BrowserType.valueOf(System.getProperty("browser", "CHROME").toUpperCase()));
+    }
+
+    /** 
+     * Initializes the WebDriver based on the specified browser type.
+     * Supports remote and local execution.
+     */
+    public static void initializeDriver(BrowserType browserType) {
+        if (driverThreadLocal.get() != null) return;
+
+        WebDriver driver;
+        switch (browserType) {
+            case CHROME:
+                driver = IS_REMOTE ? new RemoteWebDriver(getRemoteURL(), getChromeOptions()) : new org.openqa.selenium.chrome.ChromeDriver(getChromeOptions());
+                break;
+            case FIREFOX:
+                driver = IS_REMOTE ? new RemoteWebDriver(getRemoteURL(), getFirefoxOptions()) : new org.openqa.selenium.firefox.FirefoxDriver(getFirefoxOptions());
+                break;
+            case EDGE:
+                driver = IS_REMOTE ? new RemoteWebDriver(getRemoteURL(), getEdgeOptions()) : new org.openqa.selenium.edge.EdgeDriver(getEdgeOptions());
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported browser: " + browserType);
+        }
+
+        driver.manage().window().maximize();
+        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(IMPLICIT_WAIT));
+
+        driverThreadLocal.set(driver);
+        waitThreadLocal.set(new WebDriverWait(driver, Duration.ofSeconds(EXPLICIT_WAIT)));
+    }
+
+    /**
+     * Returns the Selenium Grid URL for remote execution.
+     */
+    private static URL getRemoteURL() {
+        try {
+            return new URL(GRID_URL);
+        } catch (MalformedURLException e) {
+            throw new RuntimeException("Invalid Selenium Grid URL: " + GRID_URL, e);
+        }
+    }
+
+    /** 
+     * Returns ChromeOptions with desired capabilities and arguments.
+     */
+    private static ChromeOptions getChromeOptions() {
+        ChromeOptions options = new ChromeOptions();
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("profile.default_content_setting_values.notifications", 2);
+        prefs.put("credentials_enable_service", false);
+        prefs.put("profile.password_manager_enabled", false);
+        options.setExperimentalOption("prefs", prefs);
+        options.addArguments("--disable-notifications", "--no-sandbox", "--disable-dev-shm-usage");
+        if (IS_HEADLESS) options.addArguments("--headless", "--disable-gpu");
+        DesiredCapabilities capabilities = new DesiredCapabilities();
+        capabilities.setCapability(CapabilityType.ACCEPT_SSL_CERTS, true);
+        options.merge(capabilities);
+        return options;
+    }
+
+    /** 
+     * Returns FirefoxOptions with basic arguments.
+     */
+    private static FirefoxOptions getFirefoxOptions() {
+        FirefoxOptions options = new FirefoxOptions();
+        options.addArguments("--disable-notifications");
+        if (IS_HEADLESS) options.addArguments("--headless");
+        return options;
+    }
+
+    /** 
+     * Returns EdgeOptions with headless support.
+     */
+    private static EdgeOptions getEdgeOptions() {
+        EdgeOptions options = new EdgeOptions();
+        options.addArguments("--disable-notifications");
+        if (IS_HEADLESS) options.addArguments("--headless");
+        return options;
+    }
+
+    /** 
+     * Returns the current thread's WebDriver instance.
+     * Throws exception if driver is not initialized.
+     */
+    public static WebDriver getDriver() {
+        if (driverThreadLocal.get() == null) {
+            throw new IllegalStateException("WebDriver not initialized. Call initializeDriver() first.");
+        }
+        return driverThreadLocal.get();
+    }
+
+    /** 
+     * Returns the WebDriverWait instance for the current thread.
+     * Throws exception if wait is not initialized.
+     */
+    public static WebDriverWait getWait() {
+        if (waitThreadLocal.get() == null) {
+            throw new IllegalStateException("WebDriverWait not initialized. Call initializeDriver() first.");
+        }
+        return waitThreadLocal.get();
+    }
+
+    /** 
+     * Quits the WebDriver instance and cleans up ThreadLocal references.
+     */
+    public static void quitDriver() {
+        if (driverThreadLocal.get() != null) {
+            driverThreadLocal.get().quit();
+            driverThreadLocal.remove();
+            waitThreadLocal.remove();
+        }
+    }
+
+    /** 
+     * Navigates the browser to the base URL based on environment (qa, staging, prod).
+     */
+    public static void navigateTo(String env) {
+        String baseUrl = switch (env.toLowerCase()) {
+            case "qa" -> "https://qa.example.com";
+            case "staging" -> "https://staging.example.com";
+            case "prod" -> "https://example.com";
+            default -> throw new IllegalArgumentException("Invalid environment: " + env);
+        };
+        getDriver().get(baseUrl);
+    }
+
+    /** 
+     * Returns the title of the current page.
+     */
+    public static String getPageTitle() {
+        return getDriver().getTitle();
+    }
+
+    /** 
+     * Returns the URL of the current page.
+     */
+    public static String getCurrentUrl() {
+        return getDriver().getCurrentUrl();
+    }
+}
